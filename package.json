@@ -1,6 +1,6 @@
 {
   "name": "agent-test-budget",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cut the token cost of AI-written tests: scoped runs, capped output, a loop breaker, enforced by Claude Code hooks.",
   "type": "module",
   "bin": {

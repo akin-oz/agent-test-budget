@@ -1,7 +1,7 @@
 {
   "extraKnownMarketplaces": {
     "agent-test-budget": {
-      "source": { "source": "github", "repo": "akin-oz/agent-test-budget", "ref": "v0.1.0" }
+      "source": { "source": "github", "repo": "akin-oz/agent-test-budget", "ref": "v0.2.0" }
     }
   },
   "enabledPlugins": {

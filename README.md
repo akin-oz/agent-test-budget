@@ -22,7 +22,7 @@ claude plugin install agent-test-budget@agent-test-budget
 
 Check it works: ask the agent to run `npx vitest run`. It should be refused with a message pointing at `tbudget run`.
 
-Whole team: commit [`templates/team-settings.json`](templates/team-settings.json) as `.claude/settings.json` (merge it into yours). It pins the marketplace to the `v0.1.0` release tag with `"ref"`; change the tag when you upgrade. Teammates are asked to trust the folder; if the plugin does not appear, run `/plugin install agent-test-budget@agent-test-budget` once. For a company rollout, read [Installing for a company](#installing-for-a-company) first.
+Whole team: commit [`templates/team-settings.json`](templates/team-settings.json) as `.claude/settings.json` (merge it into yours). It pins the marketplace to the `v0.2.0` release tag with `"ref"`; change the tag when you upgrade. Teammates are asked to trust the folder; if the plugin does not appear, run `/plugin install agent-test-budget@agent-test-budget` once. For a company rollout, read [Installing for a company](#installing-for-a-company) first.
 
 Optional: `mkdir .test-budget && cp templates/policy.json .test-budget/` and commit it. Defaults work without it.
 
@@ -62,18 +62,18 @@ What still happens in shadow mode: `tbudget run` scopes and caps its output as u
 The plugin runs a Node hook on every Bash and file-edit call, with the engineer's permissions. An unpinned install follows this repository's default branch, so whatever is pushed here reaches your machines on the next update. Install from a copy your organization controls, pinned to a release you reviewed. [SECURITY.md](SECURITY.md) lists what the hook runs, reads and writes.
 
 1. **Fork** into your organization (`your-org/agent-test-budget`). Add a tag ruleset that lets only admins create, move or delete `v*` tags, so a pinned tag cannot change under you. Keep the marketplace `name` as is, so the plugin id stays `agent-test-budget@agent-test-budget`.
-2. **Review** the release tag. The plugin has no npm dependencies, so the code in the tag is all the code that runs, apart from Node, git and the test runners your projects already use. Each release on GitHub has a `.tar.gz` of the tag and its `.sha256`. `shasum -a 256 -c agent-test-budget-v0.1.0.tar.gz.sha256` proves the tarball is the one CI built from that tag.
+2. **Review** the release tag. The plugin has no npm dependencies, so the code in the tag is all the code that runs, apart from Node, git and the test runners your projects already use. Each release on GitHub has a `.tar.gz` of the tag and its `.sha256`. `shasum -a 256 -c agent-test-budget-v0.2.0.tar.gz.sha256` proves the tarball is the one CI built from that tag.
 3. **Pin to a tag.** Point settings at your fork and the reviewed tag:
 
    ```json
    "extraKnownMarketplaces": {
      "agent-test-budget": {
-       "source": { "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.1.0" }
+       "source": { "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.2.0" }
      }
    }
    ```
 
-   Put this in the repository's `.claude/settings.json` (as in [`templates/team-settings.json`](templates/team-settings.json)), or in managed settings together with `"enabledPlugins": { "agent-test-budget@agent-test-budget": true }`. From a shell: `claude plugin marketplace add your-org/agent-test-budget#v0.1.0`.
+   Put this in the repository's `.claude/settings.json` (as in [`templates/team-settings.json`](templates/team-settings.json)), or in managed settings together with `"enabledPlugins": { "agent-test-budget@agent-test-budget": true }`. From a shell: `claude plugin marketplace add your-org/agent-test-budget#v0.2.0`.
 4. **Pin to a commit (optional).** A marketplace source takes `ref` (a branch or tag) but not a commit. To pin a commit, list the plugin in your organization's own marketplace with a `github` plugin source; `sha` wins over `ref`:
 
    ```json
@@ -83,18 +83,18 @@ The plugin runs a Node hook on every Bash and file-edit call, with the engineer'
      "plugins": [
        {
          "name": "agent-test-budget",
-         "source": { "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.1.0", "sha": "<40-character commit sha>" }
+         "source": { "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.2.0", "sha": "<40-character commit sha>" }
        }
      ]
    }
    ```
 
    The plugin id is then `agent-test-budget@your-org-plugins`.
-5. **Enforce it (optional).** In managed settings, `strictKnownMarketplaces` with `{ "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.1.0" }` stops engineers adding an unpinned copy. It matches `ref` exactly and blocks every source it does not list, so add your other approved marketplaces to it. See [Manage plugins for your organization](https://code.claude.com/docs/en/plugins/org).
+5. **Enforce it (optional).** In managed settings, `strictKnownMarketplaces` with `{ "source": "github", "repo": "your-org/agent-test-budget", "ref": "v0.2.0" }` stops engineers adding an unpinned copy. It matches `ref` exactly and blocks every source it does not list, so add your other approved marketplaces to it. See [Manage plugins for your organization](https://code.claude.com/docs/en/plugins/org).
 
 To update:
 
-1. In the fork, fetch the new upstream tag and read the diff: `git fetch upstream --tags && git diff v0.1.0 v0.2.0`. Check `hooks/`, `lib/`, `bin/` and `agents/` against SECURITY.md.
+1. In the fork, fetch the new upstream tag and read the diff: `git fetch upstream --tags && git diff v0.2.0 v0.3.0`. Check `hooks/`, `lib/`, `bin/` and `agents/` against SECURITY.md.
 2. Push the reviewed tag to your fork, then change `ref` (and `sha`, if you pin one) in your settings and commit.
 3. Engineers run `claude plugin marketplace update agent-test-budget`, then `claude plugin update agent-test-budget@agent-test-budget`, and restart Claude Code. Every release bumps `version` in `plugin.json`, which is what tells Claude Code that the plugin changed.
 
