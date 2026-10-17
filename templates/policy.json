@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "mode": "enforce",
+  "runner": "auto",
+  "allowAll": false,
+  "timeoutSec": 120,
+  "failFast": true,
+  "digest": {
+    "maxLines": 24,
+    "maxLineChars": 200,
+    "stackFrames": 2
+  },
+  "loop": {
+    "maxAttemptsPerFailure": 3,
+    "ttlMin": 60,
+    "maxRunsPerWindow": 12,
+    "windowMin": 60
+  },
+  "guard": {
+    "blockRawRunners": true,
+    "enforce": [
+      "vitest",
+      "jest",
+      "pytest"
+    ],
+    "blockPatterns": [],
+    "preferEditOverRewrite": true,
+    "rewriteOverlap": 0.6,
+    "rewriteMinLines": 40,
+    "blockRunnerCmd": true,
+    "inProcess": true
+  },
+  "testGlobs": [
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/test_*.py",
+    "**/*_test.py"
+  ],
+  "generic": {
+    "cmd": ""
+  },
+  "junit": {
+    "cmd": "",
+    "report": ""
+  },
+  "mutate": {
+    "maxMutants": 12,
+    "minScore": 0
+  }
+}

@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+// Thin shim: dynamic import() works whether or not a package.json marks this tree as ESM.
+import('../lib/cli.mjs')
+  .then(({ main }) => main(process.argv.slice(2)))
+  .then((code) => { process.exitCode = code; })
+  .catch((e) => { process.stderr.write(`tb: fatal: ${e?.message ?? e}\n`); process.exitCode = 4; });

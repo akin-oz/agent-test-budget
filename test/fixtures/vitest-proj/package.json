@@ -1,0 +1,1 @@
+{ "name": "fx-vitest", "private": true, "type": "module", "devDependencies": { "vitest": "*" } }

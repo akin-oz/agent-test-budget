@@ -1,0 +1,107 @@
+{
+  "id": "slugify-cart",
+  "description": "Three small TypeScript modules without tests. The agent writes a vitest suite; behaviours such as Intl formatting, cent rounding and stock limits are easy to get wrong on the first draft.",
+  "prompt": "Write a thorough vitest test suite for every module in src/ (one test file per module, placed next to its source file, named <module>.test.ts). All tests must pass against the current implementation. If a test fails, work out whether the test or the code is wrong; do NOT modify any file in src/. Finish when the whole suite is green, then reply with one line: how many tests you wrote.",
+  "check": {
+    "cmd": [
+      "npx",
+      "vitest",
+      "run",
+      "--reporter=json"
+    ],
+    "minTests": 18,
+    "sourceDir": "src",
+    "testFiles": [
+      "src/slugify.test.ts",
+      "src/money.test.ts",
+      "src/cart.test.ts"
+    ],
+    "minMutationScore": 0.7,
+    "mutants": [
+      {
+        "id": "cart-qty-zero",
+        "file": "src/cart.ts",
+        "find": "|| qty <= 0) throw",
+        "replace": "|| qty < 0) throw"
+      },
+      {
+        "id": "cart-stock-boundary",
+        "file": "src/cart.ts",
+        "find": "if (next > (cur?.stock ?? stock))",
+        "replace": "if (next >= (cur?.stock ?? stock))"
+      },
+      {
+        "id": "cart-remove-partial",
+        "file": "src/cart.ts",
+        "find": "qty: cur.qty - qty }",
+        "replace": "qty: cur.qty - 1 }"
+      },
+      {
+        "id": "cart-percent-range",
+        "file": "src/cart.ts",
+        "find": "d.value > 100)",
+        "replace": "d.value > 1000)"
+      },
+      {
+        "id": "cart-min-subtotal",
+        "file": "src/cart.ts",
+        "find": "sub < d.minSubtotal",
+        "replace": "sub <= d.minSubtotal"
+      },
+      {
+        "id": "cart-percent-rounding",
+        "file": "src/cart.ts",
+        "find": "Math.round((sub * d.value) / 100)",
+        "replace": "Math.floor((sub * d.value) / 100)"
+      },
+      {
+        "id": "cart-discount-cap",
+        "file": "src/cart.ts",
+        "find": "return Math.min(raw, sub);",
+        "replace": "return raw;"
+      },
+      {
+        "id": "money-integer-guard",
+        "file": "src/money.ts",
+        "find": "if (!Number.isInteger(cents)) throw new TypeError('cents must be an integer');",
+        "replace": ""
+      },
+      {
+        "id": "money-fraction-pad",
+        "file": "src/money.ts",
+        "find": "Number((m[3] ?? '').padEnd(2, '0'))",
+        "replace": "Number(m[3] ?? '0')"
+      },
+      {
+        "id": "money-negative",
+        "file": "src/money.ts",
+        "find": "return m[1] ? -cents : cents;",
+        "replace": "return cents;"
+      },
+      {
+        "id": "money-split-extra",
+        "file": "src/money.ts",
+        "find": "(i < extra ? sign : 0)",
+        "replace": "(i <= extra ? sign : 0)"
+      },
+      {
+        "id": "slug-ampersand",
+        "file": "src/slugify.ts",
+        "find": ".replace(/&/g, ' and ')",
+        "replace": ".replace(/&/g, ' ')"
+      },
+      {
+        "id": "slug-accents",
+        "file": "src/slugify.ts",
+        "find": ".normalize('NFKD')",
+        "replace": ".normalize('NFC')"
+      },
+      {
+        "id": "slug-trim-after-cut",
+        "file": "src/slugify.ts",
+        "find": "s = s.slice(0, opts.maxLength).replace(new RegExp(`${escape(sep)}+$`), '');",
+        "replace": "s = s.slice(0, opts.maxLength);"
+      }
+    ]
+  }
+}

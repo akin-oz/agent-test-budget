@@ -1,0 +1,10 @@
+{
+  "name": "agent-test-budget",
+  "version": "0.1.0",
+  "description": "Cut the token cost of AI-written tests without giving up the automation: hook-enforced scoped runs, capped output, a loop breaker and a test-writer subagent.",
+  "author": { "name": "akin-oz" },
+  "homepage": "https://github.com/akin-oz/agent-test-budget",
+  "repository": "https://github.com/akin-oz/agent-test-budget",
+  "license": "MIT",
+  "keywords": ["testing", "tokens", "cost", "hooks", "vitest", "jest", "pytest"]
+}

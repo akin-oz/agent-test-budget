@@ -1,0 +1,13 @@
+## Tests (cost-capped)
+
+- Run tests only with `tbudget run <test-file>` (or `tbudget run <src-file>` for the tests related to a source file). Never run vitest, jest, pytest or `npm test` directly.
+- A pass prints one line. A failure prints a short digest; the full log is `.test-budget/.state/last-run.log`, open it only if the digest is not enough.
+- Never re-run a failing test without changing something. After three identical failures `tbudget` refuses to run: stop and report the failing test, the error and your hypothesis.
+- Before writing tests for a file, run `tbudget brief <src-file>` (exports, existing tests, one style exemplar).
+- Change existing test files with Edit hunks, not whole-file rewrites.
+- The full suite is CI's job. Do not run it.
+- When the tests are green, run `tbudget mutate <src-file>` once and add assertions for the bugs it reports as survived.
+
+<!-- For agents other than Claude Code: the in-process guard is what enforces the first rule. Add the
+     lines printed by `node <plugin dir>/hooks/session-env.mjs --print` to the shell profile the agent's
+     commands run under, and put `<plugin dir>/bin` on that PATH. -->

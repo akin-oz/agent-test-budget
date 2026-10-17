@@ -1,0 +1,82 @@
+{
+  "id": "big-suite",
+  "description": "One untested module inside a repo with a large, slow, noisy existing suite (1200 tests, deprecation warnings). Full-suite runs are expensive here, so scoping has something to save.",
+  "prompt": "Write a thorough vitest test suite for src/pricing.ts in src/pricing.test.ts. All tests must pass against the current implementation; if a test fails, work out whether the test or the code is wrong. Do NOT modify any other file, and the existing tests in src/legacy must keep passing. Finish when the suite is green, then reply with one line: how many tests you wrote.",
+  "check": {
+    "cmd": [
+      "npx",
+      "vitest",
+      "run",
+      "--reporter=json",
+      "--silent=true"
+    ],
+    "minTests": 12,
+    "sourceDir": "src",
+    "testFiles": [
+      "src/pricing.test.ts"
+    ],
+    "minMutationScore": 0.7,
+    "mutants": [
+      {
+        "id": "units-negative",
+        "file": "src/pricing.ts",
+        "find": "|| units < 0) throw",
+        "replace": "|| units < -1) throw"
+      },
+      {
+        "id": "tier-rate",
+        "file": "src/pricing.ts",
+        "find": "cost += n * t.unitCents;",
+        "replace": "cost += n * tiers[0].unitCents;"
+      },
+      {
+        "id": "tier-overflow",
+        "file": "src/pricing.ts",
+        "find": "if (units > prev) throw new Error('units exceed the last tier');",
+        "replace": ""
+      },
+      {
+        "id": "tax-negative-rate",
+        "file": "src/pricing.ts",
+        "find": "if (ratePercent < 0) throw",
+        "replace": "if (ratePercent < -100) throw"
+      },
+      {
+        "id": "tax-half-away",
+        "file": "src/pricing.ts",
+        "find": "return Math.sign(raw) * Math.round(Math.abs(raw));",
+        "replace": "return Math.round(raw);"
+      },
+      {
+        "id": "coupon-exclusive",
+        "file": "src/pricing.ts",
+        "find": "      if (exclusiveUsed) continue;\n",
+        "replace": ""
+      },
+      {
+        "id": "coupon-percent-rounding",
+        "file": "src/pricing.ts",
+        "find": "Math.round(total * (1 - c.value / 100))",
+        "replace": "Math.floor(total * (1 - c.value / 100))"
+      },
+      {
+        "id": "coupon-floor-zero",
+        "file": "src/pricing.ts",
+        "find": "return Math.max(0, total);",
+        "replace": "return total;"
+      },
+      {
+        "id": "quote-tax-base",
+        "file": "src/pricing.ts",
+        "find": "const tax = taxCents(net, taxRate);",
+        "replace": "const tax = taxCents(tieredCost(units, tiers), taxRate);"
+      },
+      {
+        "id": "quote-gross",
+        "file": "src/pricing.ts",
+        "find": "gross: net + tax",
+        "replace": "gross: net"
+      }
+    ]
+  }
+}

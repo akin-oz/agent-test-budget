@@ -1,0 +1,1 @@
+{ "name": "bench-big-suite", "private": true, "type": "module", "scripts": { "test": "vitest run" }, "devDependencies": { "vitest": "^3" } }

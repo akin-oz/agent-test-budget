@@ -1,0 +1,14 @@
+{
+  "name": "agent-test-budget",
+  "owner": { "name": "akin-oz" },
+  "metadata": { "description": "Cost controls for AI-written tests." },
+  "plugins": [
+    {
+      "name": "agent-test-budget",
+      "source": "./",
+      "description": "Hook-enforced scoped test runs, capped output, a loop breaker and a test-writer subagent for Claude Code.",
+      "category": "testing",
+      "keywords": ["testing", "tokens", "cost", "hooks"]
+    }
+  ]
+}
