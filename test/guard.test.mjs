@@ -266,6 +266,27 @@ test('with runner junit/generic the configured command itself is blocked when ru
   assert.equal(decideBash('go test ./...', off), null);
 });
 
+test('here-documents: a message or file body is data, a script fed to a shell is not', () => {
+  const ctx = ctxFor(project({ 'package.json': PKG }));
+  const allow = [
+    "git commit -m \"$(cat <<'EOF'\nRun tests with tbudget, not npx vitest run\n\n- `pytest -x` is blocked too\nnpm test\nEOF\n)\"",
+    "cat > notes.md <<'EOF'\n- `uv run --frozen pytest` when there is a uv.lock\nnpx jest\nEOF",
+    "python3 - <<'EOF'\nprint('pytest')\nEOF",
+    'cat <<EOF\nplain text that mentions pytest and npm test\nEOF',
+    "cat <<-'EOF'\n\tnpx vitest\n\tEOF",
+  ];
+  for (const cmd of allow) assert.equal(decideBash(cmd, ctx), null, cmd);
+  const block = [
+    "bash <<'EOF'\nnpx vitest run\nEOF",
+    'sh -s <<EOF\npytest -x\nEOF',
+    'cat <<EOF\n$(npx vitest run)\nEOF', // unquoted: the substitution runs
+    'echo "a << b"\nnpx vitest run', // `<<` inside quotes is not a here-document
+    "cat <<'EOF' > x.txt\nhello\nEOF\nnpx vitest run", // after the body, commands again
+  ];
+  for (const cmd of block) assert.equal(decideBash(cmd, ctx)?.rule, 'raw-runner', cmd);
+  assert.equal(decideBash("cat > .test-budget/policy.json <<'EOF'\n{}\nEOF", ctx)?.rule, 'protected');
+});
+
 test('policy can switch raw-runner blocking off', () => {
   const dir = project({ '.test-budget/policy.json': JSON.stringify({ guard: { blockRawRunners: false } }) });
   assert.equal(decideBash('npx vitest', ctxFor(dir)), null);

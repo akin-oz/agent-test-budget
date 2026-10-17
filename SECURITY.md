@@ -73,7 +73,7 @@ The project root is the nearest folder above the working directory that holds `.
 
 `tbudget` runs only when called. It:
 
-- starts the project's test runner with the file arguments it was given, in its own process group, killed after `timeoutSec`: the project's own vitest or jest (through `npx --no-install`, so nothing is downloaded), `pytest` or `python -m pytest`, or the `generic.cmd` from your policy;
+- starts the project's test runner with the file arguments it was given, in the package that owns them, in its own process group, killed after `timeoutSec`: the package's own vitest or jest (through `npx --no-install`, so nothing is downloaded); for pytest, `uv run --frozen pytest` when the package has a `uv.lock` (uv may sync that package's environment, which can download its locked dependencies), else the package's `.venv/bin/pytest`, else `pytest` or `python -m pytest`; or the `generic.cmd`/`junit.cmd` from your policy;
 - runs `git status --porcelain` to find uncommitted changes, for `tbudget run` with no files;
 - reads source and test files for `tbudget brief`;
 - for `tbudget mutate`, rewrites one source file in place with each mutant in turn, runs the tests, and writes the original back (also on Ctrl-C, and from the backup above after a hard kill). It refuses a file with uncommitted changes unless given `--allow-dirty`, so a crash cannot destroy uncommitted work; it runs `git status --porcelain` on that file to check;

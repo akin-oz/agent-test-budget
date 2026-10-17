@@ -150,6 +150,15 @@ The CLI is on the agent's PATH while the plugin is enabled. To use it in your ow
 
 Exit codes: 0 pass, 1 test failure (or zero tests ran), 2 usage or policy refusal, 3 loop breaker or run budget, 4 timeout or runner error.
 
+### Monorepos
+
+Each run happens inside the package that owns its targets: the nearest folder, from the target up to the project root, whose own config declares the runner (`package.json` with vitest or jest, or `pyproject.toml`/`pytest.ini`/`tox.ini`/`setup.cfg` with pytest settings). From the repository root, `tbudget run apps/web/src/a.test.ts` runs vitest in `apps/web` with `src/a.test.ts`, and the summary line ends `| in apps/web`.
+
+- One run is one package. Targets in two packages, or a bare `tbudget run` with uncommitted changes in two packages, are refused with the list of packages.
+- A bare `tbudget run` uses the package you are standing in, else the one package with uncommitted changes.
+- pytest runs in the package's own environment: `uv run --frozen pytest` when the package (or a folder above it, up to the project root) has a `uv.lock`, else its `.venv`, else `pytest` from PATH. `--frozen` never rewrites the lock file; uv may still sync the environment on the first run.
+- One policy covers the whole repository, so `runner: auto` is what lets a vitest package and a pytest package live side by side.
+
 Runners: vitest, jest, pytest (auto-detected), any tool that writes JUnit XML via `"runner": "junit"`, or any command via `"runner": "generic"` (pass/fail by exit code only). With `junit` or `generic`, the configured command is also blocked when the agent runs it raw (`guard.blockRunnerCmd`).
 
 | Stack | `junit.cmd` | `junit.report` |
@@ -235,7 +244,7 @@ On Claude Code 2.1.299, in a live `claude -p --plugin-dir` session (Haiku, Oct 2
 - `node spawn.mjs`, a Node script that starts vitest (the shell guard only sees `node`), exits 2 with the in-process refusal, and `tbudget run` still passes.
 - SessionEnd fires and records the session: `tbudget report` shows the measured Haiku token usage and the in-process denial.
 
-Test suite: 100 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
+Test suite: 104 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
 
 Outside a Claude Code session, on macOS with Node 26 (Oct 2026):
 
@@ -261,12 +270,13 @@ Not verified: savings numbers; SubagentStop in a live session (it relies on `age
 
 ## Limits
 
-- **It is not a sandbox.** It stops the reflexive ways of running tests, and many deliberate ones: `npx`/`pnpm`/`yarn`/`bunx` (including workspace options such as `--filter`, `-w`, `--cwd`, `-C`), `python -m`, `uv`/`poetry`/`pipx run`, `uvx`, `hatch test`, `tox`/`nox` (when their config runs pytest), `coverage run -m`, `package.json` scripts, `bash`/`source`/`./script.sh` files, `make` and `just` recipes, `xargs`, `find -exec`, `watch`, wrappers such as `cross-env`, `dotenv`, `caffeinate`, `script` and `xvfb-run`, subshells, `if`/`for`/`case` bodies, `$()`, backticks, `<()`, `$'...'` quoting, variables assigned earlier in the same command, backslash line continuations. Protected paths are matched case-insensitively and through `cd`, globs and `git clean -x`/`git stash -a`; `claude plugin disable` of this plugin and setting `TBUDGET_GUARD` are refused too. The shell guard does not follow a variable set in an earlier Bash call (`npx $R`) or a Node or Python program that spawns a runner; the in-process guard catches those for vitest, jest and pytest. Neither follows `docker`/`ssh` (the container has its own environment), Taskfile, or monorepo task runners. Add those with `guard.blockPatterns`, or use `runner: junit` so the configured command is blocked.
+- **It is not a sandbox.** It stops the reflexive ways of running tests, and many deliberate ones: `npx`/`pnpm`/`yarn`/`bunx` (including workspace options such as `--filter`, `-w`, `--cwd`, `-C`), `python -m`, `uv`/`poetry`/`pipx run`, `uvx`, `hatch test`, `tox`/`nox` (when their config runs pytest), `coverage run -m`, `package.json` scripts, `bash`/`source`/`./script.sh` files, `make` and `just` recipes, `xargs`, `find -exec`, `watch`, wrappers such as `cross-env`, `dotenv`, `caffeinate`, `script` and `xvfb-run`, subshells, `if`/`for`/`case` bodies, `$()`, backticks, `<()`, `$'...'` quoting, variables assigned earlier in the same command, backslash line continuations, and a here-document fed to a shell (`bash <<EOF`). The body of any other here-document is data, so a commit message or a notes file that mentions `npx vitest` is not refused. Protected paths are matched case-insensitively and through `cd`, globs and `git clean -x`/`git stash -a`; `claude plugin disable` of this plugin and setting `TBUDGET_GUARD` are refused too. The shell guard does not follow a variable set in an earlier Bash call (`npx $R`) or a Node or Python program that spawns a runner; the in-process guard catches those for vitest, jest and pytest. Neither follows `docker`/`ssh` (the container has its own environment), Taskfile, or monorepo task runners. Add those with `guard.blockPatterns`, or use `runner: junit` so the configured command is blocked.
 - **Where it writes.** The session hooks record only in projects that already have a `.test-budget/` folder, so a user-wide install does not add one to every repository. A `.test-budget/.state/` folder does appear wherever the agent was refused a raw test run or ran `tbudget`.
 - **It is cost control, not security.** An agent set on defeating it can still tamper with things outside the project, such as user-level settings.
 - **If the hook cannot start (Node missing), it fails open.** A SessionStart check tells the agent when `node` is not on PATH. The hook does fail closed on an internal error while checking a test command. Claude Code 2.1.295 and later document `"onFailure": "block"` for command hooks; add it to `hooks/hooks.json` if you prefer failing closed (untested here).
 - **The loop breaker keys on the failure text** with numbers blurred. A flaky test that fails differently each time will not trip it; the run budget is the backstop.
-- Related-test mode needs git. For pytest it maps `foo.py` to `tests/test_foo.py` by naming convention only.
+- Related-test mode needs git. For pytest it maps `foo.py` to `tests/test_foo.py` (inside its package) by naming convention only.
+- A JUnit or generic command runs where you stand, not per package: its targets are passed as given.
 - Other agents (Codex CLI, Cursor, ...): the hooks are Claude Code's, but the in-process guard is plain environment variables. Put the lines from `node <plugin dir>/hooks/session-env.mjs --print` in the shell profile the agent's commands run under, `<plugin dir>/bin` on its PATH, and [`templates/AGENTS.md.snippet`](templates/AGENTS.md.snippet) in its instructions. Then vitest, jest and pytest refuse to run outside `tbudget` there too. Untested with any agent but Claude Code.
 - **The in-process guard needs the agent's shell to source the preamble.** `NODE_OPTIONS=` or `env -u NODE_OPTIONS` in front of a command switches it off for that command; the shell guard still sees the runner in that command, but not in a script it calls.
 
