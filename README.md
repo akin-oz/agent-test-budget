@@ -47,10 +47,12 @@ Recommended first step for a team. Shadow mode installs the plugin with zero enf
      plus 52 raw runner calls whose full output went to context (size not recorded)
    measured: 23 transcripts (9 subagent) | tokens in 14.2M (cache read 12.9M, write 1.1M), out 310.4k | claude-opus-5-5
      test commands: 38% of all tool output (1.9M of 5.0M chars, 170 calls)
+   sessions: 31 started | guard off (TBUDGET_GUARD=off): 2 | in-process guard off: 2
+   mutate: 14 runs | mean score 71% of mutants killed
    enforce: set "mode": "enforce" in .test-budget/policy.json
    ```
 
-   (Illustrative numbers.) `would-deny` is what the hook would have refused, with the first 200 characters of each command in `.test-budget/.state/runs.jsonl` so you can check for false positives before anyone gets blocked. `raw-runner-inproc` in that list is a runner the shell guard missed and the [in-process guard](#enforced-inside-the-runners) caught. `would-block` is runs the loop breaker or run budget would have refused. The `~tokens` line is an estimate (characters ÷ 4). The `measured` lines are not: when a session or subagent ends, a hook reads the transcript Claude Code already wrote and records its real API usage, plus how much of all tool output came from test commands. Multiply by your model's prices for dollars.
+   (Illustrative numbers.) `tbudget report --json` prints the same numbers as one JSON object (`schema: 1`), so a script can collect them from many repositories. `sessions` counts every session start, including those where someone switched the guard off with `TBUDGET_GUARD=off`: the escape hatch leaves a trace. `would-deny` is what the hook would have refused, with the first 200 characters of each command in `.test-budget/.state/runs.jsonl` so you can check for false positives before anyone gets blocked. `raw-runner-inproc` in that list is a runner the shell guard missed and the [in-process guard](#enforced-inside-the-runners) caught. `would-block` is runs the loop breaker or run budget would have refused. The `~tokens` line is an estimate (characters ÷ 4). The `measured` lines are not: when a session or subagent ends, a hook reads the transcript Claude Code already wrote and records its real API usage, plus how much of all tool output came from test commands. Multiply by your model's prices for dollars.
 4. If the numbers justify it and the would-deny commands look right, set `"mode": "enforce"`. If not, uninstall; nothing was blocked in the meantime.
 
 What still happens in shadow mode: `tbudget run` scopes and caps its output as usual (it never blocks anyone). What does not: protected paths are not protected, so the agent could edit the policy or the records. Read the report as evidence, not as an audit.
@@ -104,6 +106,8 @@ The PreToolUse hook reads each Bash command and refuses raw test runs. A shell p
 - In every Node process the agent starts, the preload looks at the program being run. For anything but vitest or jest, that is all it does. A vitest or jest started outside `tbudget` exits with code 2 and a pointer to `tbudget run`. The pytest plugin does the same for pytest.
 - `tbudget` marks its own runs (`TBUDGET_INSIDE=1`), and the hook refuses an agent command that sets that variable.
 
+Cost: `npm run bench:preload` starts `node -e 0` with and without the preload, interleaved. On an Apple Silicon Mac with Node 26 the median difference was under 0.5 ms on a 32 ms start, within run-to-run noise. Run it on your own machines; slower disks and older Node versions will differ.
+
 It follows the policy: `mode: shadow` only records (`raw-runner-inproc` in the report), `guard.enforce` and `guard.inProcess` switch it off per runner or entirely. It never affects your own terminal.
 
 ## Where the tokens go, and what stops each leak
@@ -134,13 +138,13 @@ tbudget run                             # tests related to uncommitted changes
 tbudget brief src/cart.ts               # exports + existing tests + one style exemplar
 tbudget stats                           # runs, denials, trips, characters kept out of context
 tbudget mutate src/cart.ts              # test quality: which small bugs in cart.ts do the tests miss?
-tbudget report                          # what enforcement stopped or would have, plus measured token usage
+tbudget report [--json]                 # what enforcement stopped or would have, measured tokens, escape-hatch use
 tbudget reset --reason "flaky CI box"   # human only: clear the loop breaker and run budget
 ```
 
 A STOP message prints the exact `node <plugin dir>/bin/tbudget reset` command to paste into your own terminal. From 70% of the run budget on, every run says how many are left, so the agent can plan instead of hitting the wall.
 
-`tbudget mutate` makes up to `mutate.maxMutants` small, valid edits to the file (a flipped comparison, `&&` for `||`, an off-by-one constant, a removed `throw`), runs the related tests (or `--tests <files>`) against each, and restores the file. A survivor is a behaviour no test checks. Some survivors are equivalent mutants that no test can kill (`x <= lo ? lo` returns the same value as `x < lo ? lo`); read the list, do not chase 100%. It counts as one run against the budget. In CI, set `mutate.minScore` (for example `0.6`) to fail below that score.
+`tbudget mutate` makes up to `mutate.maxMutants` small, valid edits to the file (a flipped comparison, `&&` for `||`, an off-by-one constant, a removed `throw`), runs the related tests (or `--tests <files>`) against each, and restores the file. A survivor is a behaviour no test checks. Some survivors are equivalent mutants that no test can kill (`x <= lo ? lo` returns the same value as `x < lo ? lo`); read the list, do not chase 100%. It counts as one run against the budget. It refuses a file with uncommitted changes, because a hard crash mid-run would leave a mutant in the only copy of that work (`--allow-dirty` relies on the backup instead). In CI, set `mutate.minScore` (for example `0.6`) to fail below that score.
 
 The CLI is on the agent's PATH while the plugin is enabled. To use it in your own terminal, run `npm link` in a clone of this repo, or call `node <plugin dir>/bin/tbudget`.
 
@@ -156,7 +160,7 @@ Runners: vitest, jest, pytest (auto-detected), any tool that writes JUnit XML vi
 | Bazel | `bazel test {files}` | `bazel-testlogs` |
 | Rust (nextest) | `cargo nextest run --profile ci {files}` | `target/nextest/ci/junit.xml` |
 
-`{files}`, `{name}` and `{report}` are replaced and shell-quoted. A report directory only counts XML files written during the run. These rows are starting points; only the parser and the directory handling are tested here, not each tool.
+`{files}`, `{name}` and `{report}` are replaced and shell-quoted. A target may be a package or label that is not a file (`./pkg/...`, `//app:test`). A command template has no "tests related to my changes" mode, so `tbudget run` with no targets is refused (`--all` runs the whole command when `allowAll` is on). A report directory only counts XML files written during the run. These rows are starting points; only the parser and the directory handling are tested here, not each tool.
 
 ## Policy (`.test-budget/policy.json`)
 
@@ -180,6 +184,7 @@ Human-edited. The guard stops the agent from changing it.
 | `guard.blockRunnerCmd` | `true` | With `junit`/`generic`: block the configured command itself when run raw |
 | `guard.inProcess` | `true` | Refuse vitest, jest and pytest inside the process when started outside `tbudget` |
 | `mutate.maxMutants` / `minScore` | `12` / `0` | Mutants per `tbudget mutate`; a `minScore` above 0 (0 to 1) makes it exit 1 below that score |
+| `measure.transcripts` | `true` | Read each session's transcript when it ends, for the measured token counts (counts only, kept in `.test-budget/.state`). `false` turns it off |
 
 Typos are reported on the first line of `tbudget run` instead of being ignored.
 
@@ -230,7 +235,7 @@ On Claude Code 2.1.299, in a live `claude -p --plugin-dir` session (Haiku, Oct 2
 - `node spawn.mjs`, a Node script that starts vitest (the shell guard only sees `node`), exits 2 with the in-process refusal, and `tbudget run` still passes.
 - SessionEnd fires and records the session: `tbudget report` shows the measured Haiku token usage and the in-process denial.
 
-Test suite: 93 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
+Test suite: 100 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
 
 Outside a Claude Code session, on macOS with Node 26 (Oct 2026):
 
@@ -257,6 +262,7 @@ Not verified: savings numbers; SubagentStop in a live session (it relies on `age
 ## Limits
 
 - **It is not a sandbox.** It stops the reflexive ways of running tests, and many deliberate ones: `npx`/`pnpm`/`yarn`/`bunx` (including workspace options such as `--filter`, `-w`, `--cwd`, `-C`), `python -m`, `uv`/`poetry`/`pipx run`, `uvx`, `hatch test`, `tox`/`nox` (when their config runs pytest), `coverage run -m`, `package.json` scripts, `bash`/`source`/`./script.sh` files, `make` and `just` recipes, `xargs`, `find -exec`, `watch`, wrappers such as `cross-env`, `dotenv`, `caffeinate`, `script` and `xvfb-run`, subshells, `if`/`for`/`case` bodies, `$()`, backticks, `<()`, `$'...'` quoting, variables assigned earlier in the same command, backslash line continuations. Protected paths are matched case-insensitively and through `cd`, globs and `git clean -x`/`git stash -a`; `claude plugin disable` of this plugin and setting `TBUDGET_GUARD` are refused too. The shell guard does not follow a variable set in an earlier Bash call (`npx $R`) or a Node or Python program that spawns a runner; the in-process guard catches those for vitest, jest and pytest. Neither follows `docker`/`ssh` (the container has its own environment), Taskfile, or monorepo task runners. Add those with `guard.blockPatterns`, or use `runner: junit` so the configured command is blocked.
+- **Where it writes.** The session hooks record only in projects that already have a `.test-budget/` folder, so a user-wide install does not add one to every repository. A `.test-budget/.state/` folder does appear wherever the agent was refused a raw test run or ran `tbudget`.
 - **It is cost control, not security.** An agent set on defeating it can still tamper with things outside the project, such as user-level settings.
 - **If the hook cannot start (Node missing), it fails open.** A SessionStart check tells the agent when `node` is not on PATH. The hook does fail closed on an internal error while checking a test command. Claude Code 2.1.295 and later document `"onFailure": "block"` for command hooks; add it to `hooks/hooks.json` if you prefer failing closed (untested here).
 - **The loop breaker keys on the failure text** with numbers blurred. A flaky test that fails differently each time will not trip it; the run budget is the backstop.

@@ -128,6 +128,12 @@ test('big-suite generator writes a deterministic 40-module legacy suite', async 
   assert.match(fs.readFileSync(path.join(a, 'src/legacy/m01.test.ts'), 'utf8'), new RegExp(`length: ${TESTS_PER_MODULE}`));
 });
 
+test('preload overhead script runs and reports a median difference', () => {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'bench', 'preload-overhead.mjs'), '10'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /node -e 0: [\d.]+ ms median without, [\d.]+ ms with the preload: [+-][\d.]+ ms/);
+});
+
 test('dry run names the test-writer model and the mutation bar', () => {
   const dry = spawnSync(process.execPath, [RUN, '--task', 'big-suite', '--runs', '1', '--dry-run'], { encoding: 'utf8' });
   assert.equal(dry.status, 0);

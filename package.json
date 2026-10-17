@@ -3,16 +3,30 @@
   "version": "0.1.0",
   "description": "Cut the token cost of AI-written tests: scoped runs, capped output, a loop breaker, enforced by Claude Code hooks.",
   "type": "module",
-  "bin": { "tbudget": "bin/tbudget" },
-  "engines": { "node": ">=18" },
-  "repository": { "type": "git", "url": "git+https://github.com/akin-oz/agent-test-budget.git" },
+  "bin": {
+    "tbudget": "bin/tbudget"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akin-oz/agent-test-budget.git"
+  },
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:e2e": "TBUDGET_E2E=1 node --test test/e2e.test.mjs",
     "validate": "claude plugin validate . --strict && claude plugin validate agents --strict && claude plugin validate skills --strict",
     "bench:dry": "node bench/run.mjs --dry-run",
-    "bench": "node bench/run.mjs"
+    "bench": "node bench/run.mjs",
+    "bench:preload": "node bench/preload-overhead.mjs"
   },
-  "keywords": ["claude-code", "ai-agents", "testing", "token-cost", "hooks"],
+  "keywords": [
+    "claude-code",
+    "ai-agents",
+    "testing",
+    "token-cost",
+    "hooks"
+  ],
   "license": "MIT"
 }

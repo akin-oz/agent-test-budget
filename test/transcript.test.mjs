@@ -43,6 +43,7 @@ test('summarizeTranscript counts usage once per message and attributes tool outp
 test('session-end hook records measured usage, and the report shows it', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tbud-tx-'));
   fs.mkdirSync(path.join(dir, '.git'));
+  fs.mkdirSync(path.join(dir, '.test-budget'));
   const tx = path.join(dir, 'session.jsonl');
   fs.writeFileSync(tx, TEXT);
   const hook = (payload) => spawnSync(process.execPath, [HOOK], { input: JSON.stringify(payload), encoding: 'utf8' });
@@ -58,4 +59,18 @@ test('session-end hook records measured usage, and the report shows it', async (
   const text = lines.join('\n');
   assert.match(text, /measured: 1 transcripts \(0 subagent\) \| tokens in 481 \(cache read 400, write 50\), out 14 \| claude-opus-5-5, claude-sonnet-5-5/);
   assert.match(text, /test commands: 86% of all tool output \(3\.0k of 3\.5k chars, 2 calls\)/);
+});
+
+test('session-end leaves projects that do not use the plugin alone, and honours measure.transcripts', () => {
+  const tx = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tbud-tx-')), 'session.jsonl');
+  fs.writeFileSync(tx, TEXT);
+  const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'tbud-plain-'));
+  fs.mkdirSync(path.join(plain, '.git'));
+  spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ hook_event_name: 'SessionEnd', transcript_path: tx, cwd: plain }) });
+  assert.ok(!fs.existsSync(path.join(plain, '.test-budget')));
+  const off = fs.mkdtempSync(path.join(os.tmpdir(), 'tbud-off-'));
+  fs.mkdirSync(path.join(off, '.test-budget'));
+  fs.writeFileSync(path.join(off, '.test-budget/policy.json'), JSON.stringify({ measure: { transcripts: false } }));
+  spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ hook_event_name: 'SessionEnd', transcript_path: tx, cwd: off }) });
+  assert.ok(!fs.existsSync(path.join(off, '.test-budget/.state/runs.jsonl')));
 });

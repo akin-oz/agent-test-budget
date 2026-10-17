@@ -54,7 +54,7 @@ Two things outside the plugin's runtime can use the network:
 
 ## What gets written, and where
 
-All writes go under the project root, in `.test-budget/`:
+All writes go under the project root, in `.test-budget/`. The session hooks write only where that folder already exists; the guard and the CLI create it when they first record something:
 
 | Path | Written by | Contents |
 |---|---|---|
@@ -63,7 +63,8 @@ All writes go under the project root, in `.test-budget/`:
 | `.test-budget/.state/state.json` | CLI | Loop-breaker state: hashes of recent failures and their counts |
 | `.test-budget/.state/last-run.log` | CLI | The full output of the last test run. Tests that print secrets will put them here, as they would in a terminal |
 | `.test-budget/.state/errors.log` | hook, CLI | Stack traces of the plugin's own internal errors |
-| `.test-budget/.state/runs.jsonl` (session records) | SessionEnd/SubagentStop hook | Per transcript: its path, the session id, token counts per model, tool-output character counts. No content |
+| `.test-budget/.state/runs.jsonl` (session records) | SessionEnd/SubagentStop hook | Per transcript: its path, the session id, token counts per model, tool-output character counts. No content. Off with `"measure": { "transcripts": false }` |
+| `.test-budget/.state/runs.jsonl` (session starts) | SessionStart hook | Per session: the session id, whether `TBUDGET_GUARD=off` was set, whether the in-process guard was set up, the OS |
 | `.test-budget/.state/mutate-backup.json` | `tbudget mutate` | The full text of the source file being mutated, while the run lasts; deleted at the end. If a run is killed hard, the next `tbudget` command restores the file from it |
 
 The project root is the nearest folder above the working directory that holds `.test-budget/policy.json`, else the nearest one with `.git`, else the working directory. To remove everything the plugin wrote: `rm -rf .test-budget/.state`.
@@ -75,7 +76,7 @@ The project root is the nearest folder above the working directory that holds `.
 - starts the project's test runner with the file arguments it was given, in its own process group, killed after `timeoutSec`: the project's own vitest or jest (through `npx --no-install`, so nothing is downloaded), `pytest` or `python -m pytest`, or the `generic.cmd` from your policy;
 - runs `git status --porcelain` to find uncommitted changes, for `tbudget run` with no files;
 - reads source and test files for `tbudget brief`;
-- for `tbudget mutate`, rewrites one source file in place with each mutant in turn, runs the tests, and writes the original back (also on Ctrl-C, and from the backup above after a hard kill);
+- for `tbudget mutate`, rewrites one source file in place with each mutant in turn, runs the tests, and writes the original back (also on Ctrl-C, and from the backup above after a hard kill). It refuses a file with uncommitted changes unless given `--allow-dirty`, so a crash cannot destroy uncommitted work; it runs `git status --porcelain` on that file to check;
 - writes only the files listed above.
 
 `generic.cmd` runs through a shell. It comes from `.test-budget/policy.json`, which the hook stops the agent from editing; treat that file like any other committed build script.

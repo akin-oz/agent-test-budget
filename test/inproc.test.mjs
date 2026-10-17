@@ -91,3 +91,15 @@ test('a pytest started outside tbudget is refused inside the process', { skip: !
   assert.equal(agentShell(shadow, 'python3 -m pytest -q test_x.py').status, 0);
   assert.equal(records(shadow)[0].type, 'would-deny');
 });
+
+test('session starts are recorded, including the escape hatch, only in projects that use the plugin', { skip: !BASH }, () => {
+  const dir = project({ mode: 'enforce' });
+  const start = (env) => spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ cwd: dir, session_id: 's' }), env: { ...process.env, ...env } });
+  start({ CLAUDE_ENV_FILE: path.join(dir, 'a.sh') });
+  start({ CLAUDE_ENV_FILE: path.join(dir, 'b.sh'), TBUDGET_GUARD: 'off' });
+  const starts = records(dir).filter((r) => r.type === 'session-start');
+  assert.deepEqual(starts.map((r) => [r.guard, r.inProcess, r.why]), [['on', true, null], ['off', false, 'TBUDGET_GUARD=off']]);
+  const plain = project();
+  spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ cwd: plain }), env: { ...process.env, CLAUDE_ENV_FILE: path.join(plain, 'c.sh') } });
+  assert.ok(!fs.existsSync(path.join(plain, '.test-budget')));
+});

@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPolicy } from '../lib/policy.mjs';
+import { appendRunIfTracked } from '../lib/state.mjs';
 
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,9 +29,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     const envFile = process.env.CLAUDE_ENV_FILE;
     let input = {};
     try { input = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { /* no payload */ }
-    const { policy } = loadPolicy(input.cwd || process.cwd());
-    if (envFile && process.env.TBUDGET_GUARD !== 'off' && policy.guard.inProcess && policy.guard.blockRawRunners) {
-      fs.appendFileSync(envFile, `${envLines(pluginRoot).join('\n')}\n`);
+    const { policy, root } = loadPolicy(input.cwd || process.cwd());
+    const off = process.env.TBUDGET_GUARD === 'off';
+    const want = !off && policy.guard.inProcess && policy.guard.blockRawRunners;
+    if (want && envFile) fs.appendFileSync(envFile, `${envLines(pluginRoot).join('\n')}\n`);
+    // Every session start is counted, so the report can show how often the escape hatch is used.
+    // Without a record here, a session with TBUDGET_GUARD=off would leave no trace at all.
+    const why = off ? 'TBUDGET_GUARD=off' : !want ? 'policy' : !envFile ? 'no CLAUDE_ENV_FILE' : null;
+    appendRunIfTracked(root, { type: 'session-start', session: input.session_id ?? null, guard: off ? 'off' : 'on', inProcess: Boolean(want && envFile), why, platform: process.platform });
+    // PowerShell skips the preamble's shell lines; say so instead of failing silently
+    if (want && envFile && process.platform === 'win32') {
+      console.log('agent-test-budget: the in-process test guard needs a bash shell. Under PowerShell only the command guard applies this session.');
     }
   } catch { /* never block a session start */ }
 }

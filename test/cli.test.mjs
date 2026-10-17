@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { main } from '../lib/cli.mjs';
 
@@ -300,6 +300,71 @@ test('report: what enforcement actually did, not only what it would have done', 
   ].map((r) => JSON.stringify(r)).join('\n') + '\n');
   const r = await tb(dir, ['report']);
   assert.match(r.text, /enforced: 2 denied \(raw-runner 1, raw-runner-inproc 1\) \| 1 runs refused \(repeat 1\)/);
+});
+
+test('junit and generic runners refuse an unscoped run: no files means the full suite', async () => {
+  for (const policy of [{ runner: 'generic', generic: { cmd: 'node fake.mjs {files}' } }, { runner: 'junit', junit: { cmd: 'node fake.mjs {files}', report: 'out' } }]) {
+    const dir = project(policy);
+    const r = await tb(dir, ['run']);
+    assert.equal(r.code, 2, policy.runner);
+    assert.match(r.text, /cannot find the tests related to your changes\. Name them/);
+    assert.equal(calls(dir), 0);
+  }
+  const all = project({ allowAll: true, generic: { cmd: 'node fake.mjs {files}' } });
+  assert.match((await tb(all, ['run'])).text, /or run the full suite with --all/);
+  assert.equal((await tb(all, ['run', '--all'])).code, 0);
+});
+
+test('junit and generic runners accept targets that are not files (packages, labels)', async () => {
+  const dir = project({ generic: { cmd: 'node fake.mjs {files}' } });
+  const r = await tb(dir, ['run', './pkg/...', '//app:unit_test']);
+  assert.equal(r.code, 0);
+  assert.match(r.lines[0], /2 targets/);
+  assert.match(fs.readFileSync(path.join(dir, '.test-budget/.state/last-run.log'), 'utf8'), /'\.\/pkg\/\.\.\.' '\/\/app:unit_test'/);
+  assert.equal((await tb(project({ runner: 'vitest' }), ['run', './pkg/...'])).code, 2); // real runners still need a real path
+});
+
+test('report --json: the same numbers as data, for collecting across repositories', async () => {
+  const dir = project();
+  fs.mkdirSync(path.join(dir, '.test-budget/.state'), { recursive: true });
+  const t = Date.now();
+  fs.writeFileSync(path.join(dir, '.test-budget/.state/runs.jsonl'), [
+    { ts: t - 86_400_000, type: 'session-start', guard: 'on', inProcess: true },
+    { ts: t, type: 'session-start', guard: 'off', inProcess: false, why: 'TBUDGET_GUARD=off' },
+    { ts: t, type: 'deny', rule: 'raw-runner' },
+    { ts: t, type: 'mutate', score: 0.5 }, { ts: t, type: 'mutate', score: 1 },
+    { ts: t, type: 'session', transcript: '/x', agent: 'main', models: { m: { input: 1, cacheWrite: 2, cacheRead: 3, output: 4 } }, toolChars: 10, testChars: 4, testCalls: 1 },
+  ].map((r) => JSON.stringify(r)).join('\n') + '\n');
+  const r = await tb(dir, ['report', '--json']);
+  const d = JSON.parse(r.text);
+  assert.equal(d.schema, 1);
+  assert.equal(d.records, 6);
+  assert.equal(d.period.days, 1);
+  assert.deepEqual(d.sessions, { started: 2, guardOff: 1, inProcessOff: 1 });
+  assert.deepEqual(d.enforced.byRule, { 'raw-runner': 1 });
+  assert.deepEqual(d.mutate, { runs: 2, meanScore: 0.75 });
+  assert.deepEqual(d.measured.tokens, { input: 1, cacheWrite: 2, cacheRead: 3, output: 4 });
+  const text = await tb(dir, ['report']);
+  assert.match(text.text, /sessions: 2 started \| guard off \(TBUDGET_GUARD=off\): 1 \| in-process guard off: 1/);
+  assert.match(text.text, /mutate: 2 runs \| mean score 75% of mutants killed/);
+  assert.ok(text.lines.length <= 14, `${text.lines.length} lines`);
+  assert.equal(JSON.parse((await tb(project(), ['report', '--json'])).text).records, 0);
+});
+
+test('mutate: refuses a source file with uncommitted changes unless --allow-dirty', async () => {
+  const dir = mutateProject();
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  const git = (...a) => spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  if (git('init', '-q').status !== 0) return; // no git here
+  git('add', '-A');
+  git('commit', '-qm', 'base');
+  assert.equal((await tb(dir, ['mutate', 'clamp.mjs', '--tests', 'weak.test.mjs'])).code, 0); // committed: fine
+  fs.appendFileSync(path.join(dir, 'clamp.mjs'), '// work in progress\n');
+  const r = await tb(dir, ['mutate', 'clamp.mjs', '--tests', 'weak.test.mjs']);
+  assert.equal(r.code, 2);
+  assert.match(r.text, /has uncommitted changes.*Commit or stash it first/);
+  assert.equal((await tb(dir, ['mutate', 'clamp.mjs', '--tests', 'weak.test.mjs', '--allow-dirty'])).code, 0);
+  assert.match(fs.readFileSync(path.join(dir, 'clamp.mjs'), 'utf8'), /work in progress/);
 });
 
 test('--all needs policy.allowAll', async () => {
