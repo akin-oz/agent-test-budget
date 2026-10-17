@@ -224,7 +224,13 @@ On Claude Code 2.1.301, in real sessions:
 - The same denial fires inside a subagent (the audit trail records the agent type).
 - The `test-writer` subagent runs `tbudget brief`, writes the file once, runs `tbudget run`, and returns a one-line report.
 
-Test suite: 92 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
+On Claude Code 2.1.299, in a live `claude -p --plugin-dir` session (Haiku, Oct 2026):
+
+- The SessionStart hook's `CLAUDE_ENV_FILE` preamble reaches the Bash tool: `NODE_OPTIONS` carries the preload and `PYTEST_PLUGINS` the pytest plugin.
+- `node spawn.mjs`, a Node script that starts vitest (the shell guard only sees `node`), exits 2 with the in-process refusal, and `tbudget run` still passes.
+- SessionEnd fires and records the session: `tbudget report` shows the measured Haiku token usage and the in-process denial.
+
+Test suite: 93 unit tests and 3 end-to-end tests against real runners (vitest 2.1.9, 3.2.7 and 5.0.5; jest 30; pytest 9). The CI workflow (unit tests on Node 18 to 24, end-to-end, manifest validation on three Claude Code versions, weekly schedule, and a release job that attaches a tarball and its SHA-256 to each `v*` tag) is included but has not run yet; it starts running once the repo is on GitHub.
 
 Outside a Claude Code session, on macOS with Node 26 (Oct 2026):
 
@@ -232,7 +238,7 @@ Outside a Claude Code session, on macOS with Node 26 (Oct 2026):
 - `tbudget mutate` on a real vitest project (8 of 12 mutants killed, survivors were the untested error paths) and a real pytest project; the source file was unchanged afterwards.
 - The transcript parser on real Claude Code 2.1.299 transcripts.
 
-Not verified: savings numbers; the SessionStart `CLAUDE_ENV_FILE` preamble and the SessionEnd/SubagentStop hooks inside a live session (the hooks are unit-tested with Claude Code's documented payloads; SubagentStop relies on `agent_transcript_path`, and is skipped without it); other agents than Claude Code; PowerShell (it does not run the preamble, so the in-process guard is off there); the JUnit command examples per tool; Windows (bash-style shims); `"onFailure": "block"` on the hook; managed-settings deployment; Claude Code versions other than 2.1.301.
+Not verified: savings numbers; SubagentStop in a live session (it relies on `agent_transcript_path`, and is skipped without it); the in-process guard and SessionEnd in an interactive session (only `-p` was tested); other agents than Claude Code; PowerShell (it does not run the preamble, so the in-process guard is off there); the JUnit command examples per tool; Windows (bash-style shims); `"onFailure": "block"` on the hook; managed-settings deployment; Claude Code versions other than 2.1.301.
 
 ### Support matrix
 

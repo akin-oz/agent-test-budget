@@ -289,6 +289,19 @@ test('mutate: a run killed mid-way is undone by the next tbudget command', async
   assert.equal(fs.readFileSync(path.join(dir, 'clamp.mjs'), 'utf8'), CLAMP);
 });
 
+test('report: what enforcement actually did, not only what it would have done', async () => {
+  const dir = project();
+  fs.mkdirSync(path.join(dir, '.test-budget/.state'), { recursive: true });
+  const t = Date.now();
+  fs.writeFileSync(path.join(dir, '.test-budget/.state/runs.jsonl'), [
+    { ts: t, type: 'deny', rule: 'raw-runner', tool: 'Bash', agent: 'main' },
+    { ts: t, type: 'deny', rule: 'raw-runner-inproc', tool: 'process', agent: 'in-process' },
+    { ts: t, type: 'block', kind: 'repeat' },
+  ].map((r) => JSON.stringify(r)).join('\n') + '\n');
+  const r = await tb(dir, ['report']);
+  assert.match(r.text, /enforced: 2 denied \(raw-runner 1, raw-runner-inproc 1\) \| 1 runs refused \(repeat 1\)/);
+});
+
 test('--all needs policy.allowAll', async () => {
   const off = await tb(project(), ['run', '--all']);
   assert.equal(off.code, 2);
